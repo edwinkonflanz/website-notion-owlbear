@@ -50,9 +50,11 @@ const getAllRooms = (): Record<string, Room> => {
   if (typeof window === "undefined") return {};
   try {
     const data = localStorage.getItem(ROOMS_STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
+    const rooms = data ? JSON.parse(data) : {};
+    console.log("📦 Todas as salas carregadas:", Object.keys(rooms));
+    return rooms;
   } catch (error) {
-    console.error("Erro ao carregar salas:", error);
+    console.error("❌ Erro ao carregar salas:", error);
     return {};
   }
 };
@@ -63,9 +65,13 @@ const saveRoom = (room: Room) => {
     const rooms = getAllRooms();
     rooms[room.code] = room;
     localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
-    console.log(`Sala ${room.code} salva com sucesso!`, room);
+    console.log(`✅ Sala ${room.code} salva com sucesso!`, room);
+    
+    // Verificação imediata
+    const verificacao = getAllRooms();
+    console.log("🔍 Verificação pós-salvamento:", verificacao[room.code] ? "OK" : "FALHOU");
   } catch (error) {
-    console.error("Erro ao salvar sala:", error);
+    console.error("❌ Erro ao salvar sala:", error);
   }
 };
 
@@ -73,10 +79,13 @@ const getRoom = (code: string): Room | null => {
   try {
     const rooms = getAllRooms();
     const room = rooms[code];
-    console.log(`Buscando sala ${code}:`, room ? "Encontrada" : "Não encontrada");
+    console.log(`🔍 Buscando sala ${code}:`, room ? "✅ Encontrada" : "❌ Não encontrada");
+    if (room) {
+      console.log("📄 Dados da sala:", room);
+    }
     return room || null;
   } catch (error) {
-    console.error("Erro ao buscar sala:", error);
+    console.error("❌ Erro ao buscar sala:", error);
     return null;
   }
 };
@@ -114,7 +123,7 @@ export default function Home() {
       return;
     }
     const code = generateRoomCode();
-    setRoomCode(code);
+    console.log("🎉 Criando nova sala com código:", code);
     
     // Criar sala inicial no armazenamento global
     const initialRoom: Room = {
@@ -141,10 +150,17 @@ export default function Home() {
     saveRoom(initialRoom);
     
     // Verificar se foi salva
-    const verificacao = getRoom(code);
-    console.log("Verificação após criar sala:", verificacao);
-    
-    setCurrentView("editor");
+    setTimeout(() => {
+      const verificacao = getRoom(code);
+      if (verificacao) {
+        console.log("✅ Sala verificada e confirmada!");
+        setRoomCode(code);
+        setCurrentView("editor");
+      } else {
+        console.error("❌ ERRO: Sala não foi salva corretamente!");
+        alert("Erro ao criar sala. Tente novamente.");
+      }
+    }, 100);
   };
 
   const handleJoinRoom = () => {
@@ -154,19 +170,26 @@ export default function Home() {
     }
     
     const codeUpper = joinCode.toUpperCase().trim();
+    console.log("🚪 Tentando entrar na sala:", codeUpper);
     
     // Debug: mostrar todas as salas disponíveis
     const allRooms = getAllRooms();
-    console.log("Todas as salas disponíveis:", Object.keys(allRooms));
-    console.log("Tentando entrar na sala:", codeUpper);
+    console.log("📋 Salas disponíveis:", Object.keys(allRooms));
     
     // Verificar se a sala existe no armazenamento global
     const room = getRoom(codeUpper);
     if (!room) {
-      alert(`Sala não encontrada! Verifique o código.\n\nCódigo digitado: ${codeUpper}\nSalas disponíveis: ${Object.keys(allRooms).join(", ") || "Nenhuma"}`);
+      const availableRooms = Object.keys(allRooms);
+      alert(
+        `❌ Sala não encontrada!\n\n` +
+        `Código digitado: ${codeUpper}\n` +
+        `Salas disponíveis: ${availableRooms.length > 0 ? availableRooms.join(", ") : "Nenhuma sala criada ainda"}\n\n` +
+        `Verifique se o código está correto.`
+      );
       return;
     }
     
+    console.log("✅ Sala encontrada! Entrando...");
     setRoomCode(codeUpper);
     setCurrentView("editor");
     setShowJoinDialog(false);
@@ -396,31 +419,36 @@ function EditorView({
 
   // Carregar sala do armazenamento global
   useEffect(() => {
+    console.log("📂 Carregando sala:", roomCode);
     const loadRoom = () => {
       const room = getRoom(roomCode);
       if (room) {
         setPages(room.pages);
         setLastSaved(new Date(room.lastSaved));
-        console.log("Sala carregada:", room);
+        console.log("✅ Sala carregada com sucesso:", room);
       } else {
-        console.error("Sala não encontrada ao carregar:", roomCode);
+        console.error("❌ ERRO: Sala não encontrada ao carregar:", roomCode);
+        alert("Erro ao carregar sala. Voltando para tela inicial.");
+        onLeave();
       }
     };
     loadRoom();
-  }, [roomCode]);
+  }, [roomCode, onLeave]);
 
   // Salvar automaticamente no armazenamento global
   useEffect(() => {
     const saveInterval = setInterval(() => {
       if (pages.length > 0) {
+        const existingRoom = getRoom(roomCode);
         const room: Room = {
           code: roomCode,
           pages,
           lastSaved: new Date().toISOString(),
-          createdAt: getRoom(roomCode)?.createdAt || new Date().toISOString()
+          createdAt: existingRoom?.createdAt || new Date().toISOString()
         };
         saveRoom(room);
         setLastSaved(new Date());
+        console.log("💾 Autosave executado");
       }
     }, 3000);
 
